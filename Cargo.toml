@@ -1,0 +1,32 @@
+[package]
+name = "cc-server-kit"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["http3", "acme", "oapi", "utils", "otel", "cors"]
+http3 = ["salvo/quinn"]
+acme = ["salvo/acme"]
+cors = ["salvo/cors"]
+websocket = ["salvo/websocket"]
+otel = ["salvo/otel", "dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
+oapi = ["salvo/oapi"]
+reqwest-msgpack = ["dep:reqwest"]
+cc-auth = ["dep:cc-auth"]
+utils = []
+
+[dependencies]
+cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git" }
+cc-utils = { git = "https://github.com/markcda/cc-utils.git", branch = "simplify" }
+opentelemetry = { optional = true, version = "0.22" }
+opentelemetry-otlp = { optional = true, version = "0.15.0", features = ["tonic"] }
+opentelemetry_sdk = { optional = true, version = "0.22.1", features = ["rt-tokio"] }
+reqwest = { optional = true, git = "https://github.com/markcda/reqwest.git", branch = "msgpack-support", default-features = false, features = ["json", "rustls-tls"] }
+salvo = { version = "0.74", features = ["affix-state", "compression", "rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["signal"] }
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-opentelemetry = { optional = true, version = "0.23" }
+tracing-subscriber = "0.3"
