@@ -22,6 +22,20 @@ oapi_api_addr: /api
 log_level: debug
 ```
 
+`Cargo.toml`:
+
+```toml
+[package]
+name = "cc-server-example"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cc-server-kit = { git = "https://github.com/markcda/cc-server-kit.git", default-features = false, features = ["oapi", "utils"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros"] }
+```
+
 The code itself:
 
 ```rust
