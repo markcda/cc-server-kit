@@ -4,7 +4,7 @@ version = "0.1.1"
 edition = "2021"
 
 [features]
-default = ["http3", "acme", "oapi", "utils", "otel", "cors"]
+default = ["http3", "acme", "oapi", "utils", "otel"]
 http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
