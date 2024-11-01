@@ -21,7 +21,10 @@ use crate::generic_setup::{GenericSetup, GenericValues, StartupVariant, GenericS
 
 #[cfg(feature = "http3")]
 #[handler]
-async fn h3_header(depot: &mut Depot, res: &mut Response) {
+/// HTTP2-to-HTTP3 switching header.
+/// 
+/// Usage is `router.hoop(h3_header)`.
+pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
   let server_port = match depot.obtain::<GenericValues>() {
     Ok(app_config) => app_config.server_port.clone(),
     Err(_) => 443.to_string(),
