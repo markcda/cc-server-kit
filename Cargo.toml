@@ -1,6 +1,6 @@
 [package]
 name = "cc-server-kit"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [features]
@@ -11,6 +11,7 @@ cors = ["salvo/cors"]
 websocket = ["salvo/websocket"]
 otel = ["salvo/otel", "dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opentelemetry_sdk", "dep:tracing-opentelemetry"]
 oapi = ["salvo/oapi"]
+proxy = ["salvo/proxy"]
 reqwest-msgpack = ["dep:reqwest"]
 cc-auth = ["dep:cc-auth"]
 utils = []
@@ -22,7 +23,7 @@ opentelemetry = { optional = true, version = "0.26" }
 opentelemetry-otlp = { optional = true, version = "0.26", features = ["tonic"] }
 opentelemetry_sdk = { optional = true, version = "0.26", features = ["rt-tokio"] }
 reqwest = { optional = true, git = "https://github.com/markcda/reqwest.git", branch = "msgpack-support", default-features = false, features = ["json", "rustls-tls"] }
-salvo = { version = "0.74", features = ["affix-state", "compression", "rustls"] }
+salvo = { version = "0.74.2", features = ["affix-state", "compression", "rustls"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 tokio = { version = "1", features = ["signal"] }
