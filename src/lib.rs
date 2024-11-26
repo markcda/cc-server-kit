@@ -82,7 +82,7 @@
 //! 
 //! Here we go! You can now start the server with `cargo run --release`!
 
-#![feature(let_chains)]
+#![feature(let_chains, async_closure)]
 
 pub mod prelude;
 pub mod generic_setup;
