@@ -61,12 +61,16 @@ pub fn get_root_router<T: GenericSetup + Send + Sync + Clone + 'static>(app_stat
 }
 
 /// Starts the server according to the startup variant provided with the custom shutdown.
-pub async fn start_with_custom_shutdown(
+pub async fn start_with_custom_shutdown<F, Fut>(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
   #[allow(unused_mut)] mut router: Router,
-  custom_shutdown: Option<impl std::future::Future<Output = ()> + Send + 'static>,
-) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
+  custom_shutdown: Option<F>,
+) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)>
+where
+  F: FnOnce(ServerHandle) -> Fut,
+  Fut: Future<Output = ()> + Send + 'static,
+{
   tracing::info!("Server is starting...");
   
   let app_config = app_config.generic_values();
@@ -145,7 +149,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config))) as Pin<Box<dyn Future<Output = ()> + Send>>
     },
@@ -156,7 +161,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config)))
     },
@@ -173,7 +179,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config)))
     },
@@ -190,7 +197,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config)))
     },
@@ -208,7 +216,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config)))
     },
@@ -234,7 +243,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config)))
     },
@@ -253,7 +263,8 @@ pub async fn start_with_custom_shutdown(
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
       if let Some(fut) = custom_shutdown {
-        tokio::spawn(fut);
+        let handle = server.handle();
+        tokio::spawn(fut(handle));
       }
       Box::pin(server.serve(mk_service(router, &app_config)))
     },
@@ -268,7 +279,7 @@ pub async fn start(
   app_config: &impl GenericSetup,
   router: Router,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
-  start_with_custom_shutdown(app_state, app_config, router, None::<std::future::Ready<()>>).await
+  start_with_custom_shutdown::<fn(ServerHandle) -> std::future::Ready<()>, _>(app_state, app_config, router, None).await
 }
 
 async fn shutdown_signal(handle: ServerHandle) {
