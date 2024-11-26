@@ -264,9 +264,10 @@ fn match_log_file_rolling(log_rolling: &Option<String>) -> MResult<tracing_appen
 fn log_filter(metadata: &tracing::Metadata) -> bool {
   metadata.module_path().is_none_or(
     |p| !(
-      p.contains("salvo") ||
-      p.contains("tower") ||
-      p.contains("quinn") ||
+      p.contains("salvo")      ||
+      p.contains("hyper_util") ||
+      p.contains("tower")      ||
+      p.contains("quinn")      ||
       p.contains("h2")
     )
   )
