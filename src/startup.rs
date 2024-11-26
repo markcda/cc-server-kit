@@ -4,6 +4,8 @@ use cc_utils::prelude::MResult;
 use salvo::prelude::*;
 
 use salvo::server::ServerHandle;
+use std::future::Future;
+use std::pin::Pin;
 use std::process::Command;
 use salvo::conn::rustls::{Keycert, RustlsConfig};
 
@@ -59,7 +61,7 @@ pub fn get_root_router<T: GenericSetup + Send + Sync + Clone + 'static>(app_stat
 }
 
 /// Starts the server according to the startup variant provided.
-pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup, #[allow(unused_mut)] mut router: Router) -> MResult<ServerHandle> {
+pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup, #[allow(unused_mut)] mut router: Router) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   tracing::info!("Server is starting...");
   
   let app_config = app_config.generic_values();
@@ -130,14 +132,14 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
     service
   };
   
-  match app_state.startup_variant {
+  let server = match app_state.startup_variant {
     StartupVariant::HttpLocalhost => {
       let acceptor = TcpListener::new(format!("127.0.0.1:{}", app_config.server_port)).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config))) as Pin<Box<dyn Future<Output = ()> + Send>>
     },
     StartupVariant::UnsafeHttp => {
       let acceptor = TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port)).bind().await;
@@ -145,7 +147,7 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config)))
     },
     #[cfg(feature = "acme")]
     StartupVariant::HttpsAcme => {
@@ -159,7 +161,7 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config)))
     },
     StartupVariant::HttpsOnly => {
       let rustls_config = RustlsConfig::new(
@@ -173,7 +175,7 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config)))
     },
     #[cfg(all(feature = "http3", feature = "acme"))]
     StartupVariant::QuinnAcme => {
@@ -188,7 +190,7 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config)))
     },
     #[cfg(feature = "http3")]
     StartupVariant::Quinn => {
@@ -211,7 +213,7 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config)))
     },
     #[cfg(feature = "http3")]
     StartupVariant::QuinnOnly => {
@@ -227,11 +229,11 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       handle = server.handle();
       let ctrlc_shutdown_handle = server.handle();
       tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      server.serve(mk_service(router, &app_config)).await;
+      Box::pin(server.serve(mk_service(router, &app_config)))
     },
-  }
+  };
   
-  Ok(handle)
+  Ok((server, handle))
 }
 
 async fn shutdown_signal(handle: ServerHandle) {

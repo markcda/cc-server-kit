@@ -287,11 +287,11 @@ fn init_logging(
   use tracing_appender::rolling;
   
   #[cfg(feature = "otel")]
-  use crate::otel::api::KeyValue;
+  use crate::otel::api::{KeyValue, trace::TracerProvider};
   #[cfg(feature = "otel")]
   use crate::otel::exporter::WithExportConfig;
   #[cfg(feature = "otel")]
-  use crate::otel::sdk::{trace, runtime, trace::RandomIdGenerator, Resource};
+  use crate::otel::sdk::{trace, trace::RandomIdGenerator, Resource};
   
   let format = fmt::format()
     .with_level(true)
@@ -337,21 +337,25 @@ fn init_logging(
     let Some(open_telemetry_endpoint) = open_telemetry_endpoint &&
     let Ok(log_level) = log_level
   {
-    let otel_tracer = opentelemetry_otlp::new_pipeline()
-      .tracing()
-      .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(open_telemetry_endpoint.as_str()))
-      .with_trace_config(
-        trace::config()
+    let otel_span_exporter = opentelemetry_otlp::SpanExporter::builder()
+      .with_tonic()
+      .with_endpoint(open_telemetry_endpoint.as_str())
+      .build()
+      .map_err(|_| ErrorResponse::from("Failed to initialize OTEL telemetry!"))?;
+    let otel_provider = opentelemetry_sdk::trace::TracerProvider::builder()
+      .with_simple_exporter(otel_span_exporter)
+      .with_config(
+        trace::Config::default()
           .with_id_generator(RandomIdGenerator::default())
           .with_max_events_per_span(32)
           .with_max_attributes_per_span(64)
-          .with_resource(Resource::new(vec![KeyValue::new("service.name", app_name.to_owned())])),
+          .with_resource(Resource::new(vec![KeyValue::new("service.name", app_name.to_owned())]))
       )
-      .install_batch(runtime::Tokio)
-      .map_err(|_| ErrorResponse::from("Failed to initialize OTEL telemetry!"))?;
+      .build()
+      .tracer(app_name.to_owned());
     
     let opentelemetry = tracing_opentelemetry::layer()
-      .with_tracer(otel_tracer)
+      .with_tracer(otel_provider)
       .with_filter(LevelFilter::from_level(*log_level))
       .with_filter(filter_fn(log_filter));
     
