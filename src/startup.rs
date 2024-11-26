@@ -93,8 +93,13 @@ pub async fn start(app_state: GenericServerState, app_config: &impl GenericSetup
       }
     } else { None };
     
+    let old_router = router;
+    router = Router::new();
+    
     router = router.push(doc.into_router(format!("{}/openapi.json", app_config.oapi_api_addr.as_ref().unwrap())));
     if let Some(oapi) = oapi_endpoint { router = router.push(oapi); }
+    
+    router = router.push(old_router);
     tracing::info!("API is available on {}", app_config.oapi_api_addr.as_ref().unwrap());
   }
   
