@@ -13,6 +13,7 @@ otel = ["salvo/otel", "dep:opentelemetry", "dep:opentelemetry-otlp", "dep:opente
 oapi = ["salvo/oapi"]
 proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-msgpack = ["dep:reqwest"]
+reqwest-http3 = ["reqwest/http3"]
 cc-auth = ["dep:cc-auth"]
 utils = []
 
