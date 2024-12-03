@@ -41,7 +41,7 @@ pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
 /// Returns preconfigured root router to use.
 /// 
 /// Usually it installs application config and state in `affix_state` and installs `h3_header` for switching protocol to QUIC, if used.
-pub fn get_root_router<T: GenericSetup + Send + Sync + Clone + 'static>(app_state: &GenericServerState) -> Router {
+pub fn get_root_router(app_state: &GenericServerState) -> Router {
   #[allow(unused_mut)] let mut router = Router::new();
   
   #[cfg(all(feature = "http3", feature = "acme"))]
