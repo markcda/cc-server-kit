@@ -3,6 +3,7 @@
 use cc_utils::prelude::MResult;
 use salvo::prelude::*;
 
+use futures_util::future::BoxFuture;
 use salvo::server::ServerHandle;
 use std::future::Future;
 use std::pin::Pin;
@@ -80,15 +81,12 @@ pub fn get_root_router(app_state: &GenericServerState) -> Router {
 }
 
 /// Starts the server according to the startup variant provided with the custom shutdown.
-pub async fn start_with_custom_shutdown<Fut>(
+pub async fn start_with_custom_shutdown(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
   #[allow(unused_mut)] mut router: Router,
-  custom_shutdowns: &[Box<dyn Fn(ServerHandle) -> Fut>],
-) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)>
-where
-  Fut: Future<Output = ()> + Send + 'static,
-{
+  custom_shutdowns: &[Box<dyn Fn(ServerHandle) -> BoxFuture<'static, ()>>],
+) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   tracing::info!("Server is starting...");
   
   let app_config = app_config.generic_values();
@@ -302,7 +300,9 @@ pub async fn start(
   app_config: &impl GenericSetup,
   router: Router,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
-  start_with_custom_shutdown(app_state, app_config, router, &[Box::new(default_shutdown_signal)]).await
+  start_with_custom_shutdown(app_state, app_config, router, &[
+    Box::new(|handle| Box::pin(default_shutdown_signal(handle))),
+  ]).await
 }
 
 pub async fn default_shutdown_signal(handle: ServerHandle) {
