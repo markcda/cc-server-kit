@@ -87,7 +87,7 @@ pub async fn start_with_custom_shutdown<F, Fut>(
   custom_shutdowns: &[F],
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)>
 where
-  F: FnOnce(ServerHandle) -> Fut,
+  F: Fn(ServerHandle) -> Fut,
   Fut: Future<Output = ()> + Send + 'static,
 {
   tracing::info!("Server is starting...");
@@ -303,7 +303,7 @@ pub async fn start(
   app_config: &impl GenericSetup,
   router: Router,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
-  start_with_custom_shutdown::<fn(ServerHandle) -> std::future::Ready<()>, _>(app_state, app_config, router, &[default_shutdown_signal]).await
+  start_with_custom_shutdown(app_state, app_config, router, &[default_shutdown_signal]).await
 }
 
 pub async fn default_shutdown_signal(handle: ServerHandle) {
