@@ -93,7 +93,7 @@ fn tests_router() -> Router {
 async fn main() {
   let setup = load_generic_config::<Setup>("server-example").await.unwrap();
   let state = load_generic_state(&setup).await.unwrap();
-  let router = get_root_router(&state, setup.clone()).push(tests_router());
+  let router = get_root_router_autoinject(&state, setup.clone()).push(tests_router());
   let (server, _handler) = start(state, &setup, router).await.unwrap();
   server.await
 }
