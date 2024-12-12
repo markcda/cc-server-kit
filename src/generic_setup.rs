@@ -305,14 +305,14 @@ fn init_logging(
     .compact();
   
   let io_tracer = if let Ok(log_level) = log_level {
-    #[cfg(not(log_without_filtering))]
+    #[cfg(not(feature = "log-without-filtering"))]
     let io_tracer = fmt::layer()
       .event_format(format.clone())
       .with_writer(std::io::stdout)
       .with_span_events(FmtSpan::CLOSE)
       .with_filter(LevelFilter::from_level(*log_level))
       .with_filter(filter_fn(log_filter));
-    #[cfg(log_without_filtering)]
+    #[cfg(feature = "log-without-filtering")]
     let io_tracer = fmt::layer()
       .event_format(format.clone())
       .with_writer(std::io::stdout)
@@ -330,7 +330,7 @@ fn init_logging(
       .map_err(|_| ErrorResponse::from("Failed to initialize logging to file!").with_500_pub().build())?;
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
     
-    #[cfg(not(log_without_filtering))]
+    #[cfg(not(feature = "log-without-filtering"))]
     let file_tracer = fmt::layer()
       .event_format(format)
       .with_writer(non_blocking)
@@ -338,7 +338,7 @@ fn init_logging(
       .with_span_events(FmtSpan::CLOSE)
       .with_filter(LevelFilter::from_level(*log_file_level))
       .with_filter(filter_fn(log_filter));
-    #[cfg(log_without_filtering)]
+    #[cfg(feature = "log-without-filtering")]
     let file_tracer = fmt::layer()
       .event_format(format)
       .with_writer(non_blocking)
@@ -371,12 +371,12 @@ fn init_logging(
       .build()
       .tracer(app_name.to_owned());
     
-    #[cfg(not(log_without_filtering))]
+    #[cfg(not(feature = "log-without-filtering"))]
     let opentelemetry = tracing_opentelemetry::layer()
       .with_tracer(otel_provider)
       .with_filter(LevelFilter::from_level(*log_level))
       .with_filter(filter_fn(log_filter));
-    #[cfg(log_without_filtering)]
+    #[cfg(feature = "log-without-filtering")]
     let opentelemetry = tracing_opentelemetry::layer()
       .with_tracer(otel_provider)
       .with_filter(LevelFilter::from_level(*log_level));
