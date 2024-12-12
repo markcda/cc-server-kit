@@ -16,7 +16,7 @@ reqwest-msgpack = ["dep:reqwest"]
 reqwest-http3 = ["reqwest/http3"]
 cc-auth = ["dep:cc-auth"]
 utils = []
-log-without-filtering = []
+log_without_filtering = []
 
 [dependencies]
 cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git" }
