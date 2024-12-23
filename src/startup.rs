@@ -80,13 +80,14 @@ pub fn get_root_router(app_state: &GenericServerState) -> Router {
 }
 
 /// Starts the server according to the startup variant provided with the custom shutdown.
-pub async fn start_with_custom_shutdown<Fut>(
+pub async fn start_with_custom_shutdown<F, Fut>(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
   #[allow(unused_mut)] mut router: Router,
-  custom_shutdowns: &[Box<dyn Fn(ServerHandle) -> Fut>],
+  custom_shutdowns: &[F],
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)>
 where
+  F: Fn(ServerHandle) -> Fut,
   Fut: Future<Output = ()> + Send + 'static,
 {
   tracing::info!("Server is starting...");
@@ -170,7 +171,7 @@ where
       let server = Server::new(acceptor);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -182,7 +183,7 @@ where
       let server = Server::new(acceptor);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -200,7 +201,7 @@ where
       let server = Server::new(acceptor);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -218,7 +219,7 @@ where
       let server = Server::new(listener);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -237,7 +238,7 @@ where
       let server = Server::new(acceptor);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -264,7 +265,7 @@ where
       let server = Server::new(acceptor);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -284,7 +285,7 @@ where
       let server = Server::new(acceptor);
       handle = server.handle();
       
-      for fut in custom_shutdowns.iter() {
+      for fut in custom_shutdowns {
         let handle = server.handle();
         tokio::spawn(fut(handle));
       }
@@ -302,7 +303,7 @@ pub async fn start(
   app_config: &impl GenericSetup,
   router: Router,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
-  start_with_custom_shutdown(app_state, app_config, router, &[Box::new(default_shutdown_signal)]).await
+  start_with_custom_shutdown(app_state, app_config, router, &[default_shutdown_signal]).await
 }
 
 pub async fn default_shutdown_signal(handle: ServerHandle) {
