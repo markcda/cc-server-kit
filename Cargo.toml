@@ -21,7 +21,6 @@ log-without-filtering = []
 [dependencies]
 cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git" }
 cc-utils = { git = "https://github.com/markcda/cc-utils.git", branch = "simplify" }
-futures-util = "0.3"
 opentelemetry = { optional = true, version = "0.27" }
 opentelemetry-otlp = { optional = true, version = "0.27", features = ["tonic"] }
 opentelemetry_sdk = { optional = true, version = "0.27", features = ["rt-tokio"] }
