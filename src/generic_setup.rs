@@ -227,7 +227,7 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
       },
       _ => return Err(ErrorResponse::from("The server deployment method could not be determined. Read the documentation on the `startup_variant` field.").with_500_pub().build()),
     },
-    _file_log_guard: if let Some(guard) = file_log_guard { Some(Arc::new(guard)) } else { None },
+    _file_log_guard: file_log_guard.map(Arc::new),
   };
   Ok(state)
 }
@@ -293,7 +293,7 @@ fn init_logging(
   #[cfg(feature = "otel")]
   use crate::otel::exporter::WithExportConfig;
   #[cfg(feature = "otel")]
-  use crate::otel::sdk::{trace, trace::RandomIdGenerator, Resource};
+  use crate::otel::sdk::{trace::RandomIdGenerator, Resource};
   
   let format = fmt::format()
     .with_level(true)
@@ -361,13 +361,10 @@ fn init_logging(
       .map_err(|_| ErrorResponse::from("Failed to initialize OTEL telemetry!"))?;
     let otel_provider = opentelemetry_sdk::trace::TracerProvider::builder()
       .with_simple_exporter(otel_span_exporter)
-      .with_config(
-        trace::Config::default()
-          .with_id_generator(RandomIdGenerator::default())
-          .with_max_events_per_span(32)
-          .with_max_attributes_per_span(64)
-          .with_resource(Resource::new(vec![KeyValue::new("service.name", app_name.to_owned())]))
-      )
+      .with_id_generator(RandomIdGenerator::default())
+      .with_max_events_per_span(32)
+      .with_max_attributes_per_span(64)
+      .with_resource(Resource::new(vec![KeyValue::new("service.name", app_name.to_owned())]))
       .build()
       .tracer(app_name.to_owned());
     

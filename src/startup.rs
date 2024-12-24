@@ -80,16 +80,11 @@ pub fn get_root_router(app_state: &GenericServerState) -> Router {
 }
 
 /// Starts the server according to the startup variant provided with the custom shutdown.
-pub async fn start_with_custom_shutdown<F, Fut>(
+pub async fn start_clean(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
   #[allow(unused_mut)] mut router: Router,
-  custom_shutdown: Option<F>,
-) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)>
-where
-  F: FnOnce(ServerHandle) -> Fut,
-  Fut: Future<Output = ()> + Send + 'static,
-{
+) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   tracing::info!("Server is starting...");
   
   let app_config = app_config.generic_values();
@@ -170,25 +165,13 @@ where
       let acceptor = TcpListener::new(format!("127.0.0.1:{}", app_config.server_port)).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config))) as Pin<Box<dyn Future<Output = ()> + Send>>
+      Box::pin(server.serve(mk_service(router, app_config))) as Pin<Box<dyn Future<Output = ()> + Send>>
     },
     StartupVariant::UnsafeHttp => {
       let acceptor = TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port)).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config)))
+      Box::pin(server.serve(mk_service(router, app_config)))
     },
     #[cfg(feature = "acme")]
     StartupVariant::HttpsAcme => {
@@ -200,13 +183,7 @@ where
       let acceptor = acme_listener.join(TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port))).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config)))
+      Box::pin(server.serve(mk_service(router, app_config)))
     },
     StartupVariant::HttpsOnly => {
       let rustls_config = RustlsConfig::new(
@@ -218,13 +195,7 @@ where
 
       let server = Server::new(listener);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config)))
+      Box::pin(server.serve(mk_service(router, app_config)))
     },
     #[cfg(all(feature = "http3", feature = "acme"))]
     StartupVariant::QuinnAcme => {
@@ -237,13 +208,7 @@ where
       let acceptor = acme_listener.join(TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port))).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config)))
+      Box::pin(server.serve(mk_service(router, app_config)))
     },
     #[cfg(feature = "http3")]
     StartupVariant::Quinn => {
@@ -264,13 +229,7 @@ where
 
       let server = Server::new(acceptor);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config)))
+      Box::pin(server.serve(mk_service(router, app_config)))
     },
     #[cfg(feature = "http3")]
     StartupVariant::QuinnOnly => {
@@ -284,13 +243,7 @@ where
 
       let server = Server::new(acceptor);
       handle = server.handle();
-      let ctrlc_shutdown_handle = server.handle();
-      tokio::spawn(async move { shutdown_signal(ctrlc_shutdown_handle).await });
-      if let Some(fut) = custom_shutdown {
-        let handle = server.handle();
-        tokio::spawn(fut(handle));
-      }
-      Box::pin(server.serve(mk_service(router, &app_config)))
+      Box::pin(server.serve(mk_service(router, app_config)))
     },
   };
   
@@ -303,10 +256,13 @@ pub async fn start(
   app_config: &impl GenericSetup,
   router: Router,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
-  start_with_custom_shutdown::<fn(ServerHandle) -> std::future::Ready<()>, _>(app_state, app_config, router, None).await
+  let (fut, handle) = start_clean(app_state, app_config, router).await?;
+  let ctrl_c_handle = handle.clone();
+  tokio::spawn(async move { shutdown_signal(ctrl_c_handle).await });
+  Ok((fut, handle))
 }
 
-async fn shutdown_signal(handle: ServerHandle) {
+pub async fn shutdown_signal(handle: ServerHandle) {
   tokio::signal::ctrl_c().await.unwrap();
   tracing::info!("Shutdown with Ctrl+C requested.");
   handle.stop_graceful(None);
