@@ -1,2 +1,4 @@
+/artifacts
 /target
+.directory
 Cargo.lock
