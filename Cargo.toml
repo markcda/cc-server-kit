@@ -4,7 +4,7 @@ version = "0.2.3"
 edition = "2024"
 
 [features]
-default = ["http3", "acme", "oapi", "cc-utils", "otel"]
+default = ["http3", "acme", "oapi", "cc-utils", "otel", "start-with-service"]
 http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
@@ -17,6 +17,7 @@ reqwest-http3 = ["reqwest/http3"]
 cc-auth = ["dep:cc-auth"]
 cc-utils = []
 log-without-filtering = []
+start-with-service = []
 
 [dependencies]
 cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git" }

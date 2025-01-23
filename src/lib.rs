@@ -83,6 +83,7 @@
 //! Here we go! You can now start the server with `cargo run --release`!
 
 #![feature(let_chains)]
+#![deny(warnings, clippy::todo, clippy::unimplemented)]
 
 pub mod prelude;
 pub mod generic_setup;
