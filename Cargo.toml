@@ -1,10 +1,10 @@
 [package]
 name = "cc-server-kit"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 
 [features]
-default = ["http3", "acme", "oapi", "utils", "otel"]
+default = ["http3", "acme", "oapi", "cc-utils", "otel"]
 http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
@@ -15,7 +15,7 @@ proxy = ["salvo/proxy", "reqwest/stream"]
 reqwest-msgpack = ["dep:reqwest"]
 reqwest-http3 = ["reqwest/http3"]
 cc-auth = ["dep:cc-auth"]
-utils = []
+cc-utils = []
 log-without-filtering = []
 
 [dependencies]

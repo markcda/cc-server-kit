@@ -1,7 +1,7 @@
 //! Standard prelude to import needed tools at once.
 
 #[cfg(feature = "utils")]
-pub use cc_utils::prelude::{MResult, ErrorResponse, Consider, ok, json, msgpack, OK, Json, MsgPack, MsgPackParser};
+pub use cc_utils::{self, prelude::{MResult, ErrorResponse, Consider, ok, json, msgpack, OK, Json, MsgPack, MsgPackParser}};
 
 pub use salvo;
 pub use tracing;

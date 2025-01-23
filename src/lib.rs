@@ -107,7 +107,7 @@ pub mod otel {
 pub use reqwest;
 
 #[cfg(feature = "cc-auth")]
-pub use cc_auth as auth;
+pub use cc_auth;
 
-#[cfg(feature = "utils")]
-pub use cc_utils as utils;
+#[cfg(feature = "cc-utils")]
+pub use cc_utils;
