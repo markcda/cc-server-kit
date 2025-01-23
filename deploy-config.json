@@ -1,0 +1,64 @@
+{
+  "project_name": "cc-server-kit",
+  "langs": [
+    "Rust"
+  ],
+  "targets": [
+    {
+      "arch": "x86_64",
+      "os": "Linux",
+      "derivative": "any",
+      "version": "No"
+    }
+  ],
+  "deploy_toolkit": null,
+  "cache_files": [
+    ".git",
+    "Cargo.lock",
+    "target"
+  ],
+  "pipelines": [
+    {
+      "title": "lint",
+      "desc": "Got from `Rust (Lint only)`. ",
+      "info": "rust-lint-only@0.1.0",
+      "tags": [
+        "cargo",
+        "rust",
+        "clippy",
+        "lint"
+      ],
+      "actions": [
+        {
+          "title": "Lint",
+          "desc": "Got from `Cargo Clippy`. ",
+          "info": "cargo-clippy@0.1.0",
+          "tags": [
+            "cargo",
+            "clippy"
+          ],
+          "action": {
+            "PreBuild": {
+              "supported_langs": [
+                "Rust"
+              ],
+              "commands": [
+                {
+                  "bash_c": "cargo clippy",
+                  "ignore_fails": false,
+                  "show_success_output": true,
+                  "show_bash_c": true,
+                  "only_when_fresh": null
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "default": true
+    }
+  ],
+  "artifacts": [],
+  "variables": [],
+  "inplace_artifacts_into_project_root": []
+}

@@ -261,6 +261,7 @@ fn match_log_file_rolling(log_rolling: &Option<String>) -> MResult<tracing_appen
   }
 }
 
+#[allow(dead_code)]
 fn log_filter(metadata: &tracing::Metadata) -> bool {
   metadata.module_path().is_none_or(
     |p| !(
@@ -285,7 +286,7 @@ fn init_logging(
   use tracing_subscriber::prelude::*;
   use tracing_subscriber::{fmt, registry};
   use tracing_subscriber::fmt::format::FmtSpan;
-  use tracing_subscriber::filter::{LevelFilter, filter_fn};
+  #[allow(unused_imports)] use tracing_subscriber::filter::{LevelFilter, filter_fn};
   use tracing_appender::rolling;
   
   #[cfg(feature = "otel")]
