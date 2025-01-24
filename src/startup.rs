@@ -79,11 +79,17 @@ pub fn get_root_router(app_state: &GenericServerState) -> Router {
   router
 }
 
-/// Starts the server according to the startup variant provided with the custom shutdown.
-pub async fn start_clean(
+#[allow(clippy::mut_from_ref, invalid_reference_casting)]
+unsafe fn make_mut<T>(reference: &T) -> &mut T {
+  let const_ptr = reference as *const T;
+  let mut_ptr = const_ptr as *mut T;
+  unsafe { &mut *mut_ptr }
+}
+
+pub async fn start_with_service(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
-  #[allow(unused_mut)] mut router: Router,
+  #[allow(unused_mut)] mut service: Service,
 ) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
   tracing::info!("Server is starting...");
   
@@ -100,7 +106,7 @@ pub async fn start_clean(
         "bearer",
         SecurityScheme::Http(Http::new(salvo::oapi::security::HttpAuthScheme::Bearer).bearer_format("JSON"))
       )
-      .merge_router(&router);
+      .merge_router(&service.router);
     
     let oapi_endpoint = if let Some(ftype) = app_config.oapi_frontend_type.as_ref() {
       match ftype.as_str() {
@@ -116,62 +122,58 @@ pub async fn start_clean(
       }
     } else { None };
     
-    let old_router = router;
-    router = Router::new();
-    
+    let mut router = Router::new();
     router = router.push(doc.into_router(format!("{}/openapi.json", app_config.oapi_api_addr.as_ref().unwrap())));
     if let Some(oapi) = oapi_endpoint { router = router.push(oapi); }
     
-    router = router.push(old_router);
+    unsafe {
+      let service_router = make_mut(service.router.as_ref());
+      service_router.routers_mut().insert(0, router);
+    }
+    
     tracing::info!("API is available on {}", app_config.oapi_api_addr.as_ref().unwrap());
   }
   
-  let handle;
+  #[cfg(feature = "cors")]
+  if let Some(domain) = &app_config.allow_cors_domain {
+    let cors = salvo::cors::Cors::new()
+      .allow_origin(domain)
+      .allow_credentials(if domain.as_str() == "*" { false } else { true })
+      .allow_headers(vec![
+        "Authorization",
+        "Accept",
+        "Access-Control-Allow-Headers",
+        "Content-Type",
+        "Origin",
+        "X-Requested-With",
+      ])
+      .allow_methods(vec![
+        salvo::http::Method::GET,
+        salvo::http::Method::POST,
+        salvo::http::Method::PUT,
+        salvo::http::Method::PATCH,
+        salvo::http::Method::DELETE,
+        salvo::http::Method::OPTIONS,
+      ])
+      .into_handler();
+    
+    service = service.hoop(cors);
+  }
   
-  let mk_service = |router: Router, #[allow(unused)] app_config: &GenericValues| {
-    #[allow(unused_mut)] let mut service = Service::new(router);
-    
-    #[cfg(feature = "cors")]
-    if let Some(domain) = &app_config.allow_cors_domain {
-      let cors = salvo::cors::Cors::new()
-        .allow_origin(domain)
-        .allow_credentials(if domain.as_str() == "*" { false } else { true })
-        .allow_headers(vec![
-          "Authorization",
-          "Accept",
-          "Access-Control-Allow-Headers",
-          "Content-Type",
-          "Origin",
-          "X-Requested-With",
-        ])
-        .allow_methods(vec![
-          salvo::http::Method::GET,
-          salvo::http::Method::POST,
-          salvo::http::Method::PUT,
-          salvo::http::Method::PATCH,
-          salvo::http::Method::DELETE,
-          salvo::http::Method::OPTIONS,
-        ])
-        .into_handler();
-      
-      service = service.hoop(cors);
-    }
-    
-    service
-  };
+  let handle;
   
   let server = match app_state.startup_variant {
     StartupVariant::HttpLocalhost => {
       let acceptor = TcpListener::new(format!("127.0.0.1:{}", app_config.server_port)).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config))) as Pin<Box<dyn Future<Output = ()> + Send>>
+      Box::pin(server.serve(service)) as Pin<Box<dyn Future<Output = ()> + Send>>
     },
     StartupVariant::UnsafeHttp => {
       let acceptor = TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port)).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config)))
+      Box::pin(server.serve(service))
     },
     #[cfg(feature = "acme")]
     StartupVariant::HttpsAcme => {
@@ -179,11 +181,11 @@ pub async fn start_clean(
         .acme()
         .cache_path("tmp/letsencrypt")
         .add_domain(app_config.acme_domain.as_ref().unwrap())
-        .http01_challenge(&mut router);
+        .http01_challenge(unsafe { make_mut(service.router.as_ref()) });
       let acceptor = acme_listener.join(TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port))).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config)))
+      Box::pin(server.serve(service))
     },
     StartupVariant::HttpsOnly => {
       let rustls_config = RustlsConfig::new(
@@ -195,7 +197,7 @@ pub async fn start_clean(
 
       let server = Server::new(listener);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config)))
+      Box::pin(server.serve(service))
     },
     #[cfg(all(feature = "http3", feature = "acme"))]
     StartupVariant::QuinnAcme => {
@@ -203,12 +205,12 @@ pub async fn start_clean(
         .acme()
         .cache_path("tmp/letsencrypt")
         .add_domain(app_config.acme_domain.as_ref().unwrap())
-        .http01_challenge(&mut router)
+        .http01_challenge(unsafe { make_mut(service.router.as_ref()) })
         .quinn(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port));
       let acceptor = acme_listener.join(TcpListener::new(format!("{}:{}", app_config.server_host.as_ref().unwrap(), app_config.server_port))).bind().await;
       let server = Server::new(acceptor);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config)))
+      Box::pin(server.serve(service))
     },
     #[cfg(feature = "http3")]
     StartupVariant::Quinn => {
@@ -229,7 +231,7 @@ pub async fn start_clean(
 
       let server = Server::new(acceptor);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config)))
+      Box::pin(server.serve(service))
     },
     #[cfg(feature = "http3")]
     StartupVariant::QuinnOnly => {
@@ -243,11 +245,20 @@ pub async fn start_clean(
 
       let server = Server::new(acceptor);
       handle = server.handle();
-      Box::pin(server.serve(mk_service(router, app_config)))
+      Box::pin(server.serve(service))
     },
   };
   
   Ok((server, handle))
+}
+
+/// Starts the server according to the startup variant provided with the custom shutdown.
+pub async fn start_clean(
+  app_state: GenericServerState,
+  app_config: &impl GenericSetup,
+  router: Router,
+) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
+  start_with_service(app_state, app_config, Service::new(router)).await
 }
 
 /// Starts the server according to the startup variant provided.
