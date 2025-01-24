@@ -86,7 +86,6 @@ unsafe fn make_mut<T>(reference: &T) -> &mut T {
   unsafe { &mut *mut_ptr }
 }
 
-// #[cfg(feature = "start-with-service")]
 pub async fn start_with_service(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
