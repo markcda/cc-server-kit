@@ -56,7 +56,7 @@ pub struct GenericValues {
   /// Server host.
   pub server_host: Option<String>,
   /// Server port. For no reverse proxy and Internet usage, set to `80` for HTTP and `443` for HTTPS/QUIC.
-  pub server_port: String,
+  pub server_port: u16,
   /// ACME origin; see [`salvo/conn/acme` docs](https://docs.rs/salvo/latest/salvo/conn/acme/index.html).
   pub acme_domain: Option<String>,
   /// ACME challenge port; see [`salvo/conn/acme` docs](https://docs.rs/salvo/latest/salvo/conn/acme/index.html).
@@ -108,7 +108,7 @@ impl Default for GenericValues {
       app_name: "generic".into(),
       startup_type: "http_localhost".into(),
       server_host: None,
-      server_port: "8800".into(),
+      server_port: 8800,
       acme_domain: None,
       acme_challenge_port: None,
       ssl_key_path: None,

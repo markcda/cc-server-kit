@@ -19,7 +19,7 @@ use salvo::oapi::security::Http;
 #[cfg(feature = "oapi")]
 use salvo::oapi::SecurityScheme;
 
-use crate::generic_setup::{GenericSetup, GenericValues, StartupVariant, GenericServerState};
+use crate::generic_setup::{GenericSetup, StartupVariant, GenericServerState};
 
 #[cfg(feature = "http3")]
 #[handler]
@@ -27,9 +27,11 @@ use crate::generic_setup::{GenericSetup, GenericValues, StartupVariant, GenericS
 /// 
 /// Usage is `router.hoop(h3_header)`.
 pub async fn h3_header(depot: &mut Depot, res: &mut Response) {
+  use crate::generic_setup::GenericValues;
+  
   let server_port = match depot.obtain::<GenericValues>() {
-    Ok(app_config) => app_config.server_port.clone(),
-    Err(_) => 443.to_string(),
+    Ok(app_config) => app_config.server_port,
+    Err(_) => 443,
   };
 
   res.headers_mut().insert(
@@ -177,6 +179,7 @@ pub async fn start_with_service(
     },
     #[cfg(feature = "acme")]
     StartupVariant::HttpsAcme => {
+      #[cfg(feature = "force-https")] { service = service.hoop(ForceHttps::new().https_port(app_config.server_port)); }
       let acme_listener = TcpListener::new(format!("0.0.0.0:{}", app_config.acme_challenge_port.as_ref().unwrap()))
         .acme()
         .cache_path("tmp/letsencrypt")
@@ -188,6 +191,7 @@ pub async fn start_with_service(
       Box::pin(server.serve(service))
     },
     StartupVariant::HttpsOnly => {
+      #[cfg(feature = "force-https")] { service = service.hoop(ForceHttps::new().https_port(app_config.server_port)); }
       let rustls_config = RustlsConfig::new(
         Keycert::new().cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?.key_from_path(app_config.ssl_key_path.as_ref().unwrap())?
       );
@@ -201,6 +205,7 @@ pub async fn start_with_service(
     },
     #[cfg(all(feature = "http3", feature = "acme"))]
     StartupVariant::QuinnAcme => {
+      #[cfg(feature = "force-https")] { service = service.hoop(ForceHttps::new().https_port(app_config.server_port)); }
       let acme_listener = TcpListener::new(format!("0.0.0.0:{}", app_config.acme_challenge_port.as_ref().unwrap()))
         .acme()
         .cache_path("tmp/letsencrypt")
@@ -214,6 +219,7 @@ pub async fn start_with_service(
     },
     #[cfg(feature = "http3")]
     StartupVariant::Quinn => {
+      #[cfg(feature = "force-https")] { service = service.hoop(ForceHttps::new().https_port(app_config.server_port)); }
       let rustls_config = RustlsConfig::new(
         Keycert::new().cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?.key_from_path(app_config.ssl_key_path.as_ref().unwrap())?
       );
@@ -235,6 +241,7 @@ pub async fn start_with_service(
     },
     #[cfg(feature = "http3")]
     StartupVariant::QuinnOnly => {
+      #[cfg(feature = "force-https")] { service = service.hoop(ForceHttps::new().https_port(app_config.server_port)); }
       let quinn_config = RustlsConfig::new(
         Keycert::new().cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?.key_from_path(app_config.ssl_key_path.as_ref().unwrap())?
       ).alpn_protocols(vec!["h3".as_bytes().to_owned()]).build_quinn_config()?;

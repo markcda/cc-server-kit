@@ -1,10 +1,10 @@
 [package]
 name = "cc-server-kit"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2024"
 
 [features]
-default = ["http3", "acme", "oapi", "cc-utils", "otel"]
+default = ["http3", "acme", "oapi", "cc-utils", "otel", "force-https"]
 http3 = ["salvo/quinn"]
 acme = ["salvo/acme"]
 cors = ["salvo/cors"]
@@ -17,15 +17,27 @@ reqwest-http3 = ["reqwest/http3"]
 cc-auth = ["dep:cc-auth"]
 cc-utils = []
 log-without-filtering = []
+force-https = ["salvo/force-https"]
+jwt-auth = ["salvo/jwt-auth"]
+basic-auth = ["salvo/basic-auth"]
+caching-headers = ["salvo/caching-headers"]
+catch-panic = ["salvo/catch-panic"]
+concurrency-limiter = ["salvo/concurrency-limiter"]
+request-id = ["salvo/request-id"]
+size-limiter = ["salvo/size-limiter"]
+sse = ["salvo/sse"]
+timeout = ["salvo/timeout"]
+trailing-slash = ["salvo/trailing-slash"]
+tower-compat = ["salvo/tower-compat"]
 
 [dependencies]
-cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git" }
+cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git", tag = "0.3.1" }
 cc-utils = { git = "https://github.com/markcda/cc-utils.git", tag = "0.5.4" }
 opentelemetry = { optional = true, version = "0.27" }
 opentelemetry-otlp = { optional = true, version = "0.27", features = ["tonic"] }
 opentelemetry_sdk = { optional = true, version = "0.27", features = ["rt-tokio"] }
 reqwest = { optional = true, git = "https://github.com/markcda/reqwest.git", branch = "msgpack-support", default-features = false, features = ["json", "rustls-tls"] }
-salvo = { version = "0.76", features = ["affix-state", "compression", "rustls"] }
+salvo = { version = "0.76", features = ["affix-state", "compression", "rustls", "cookie"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 tokio = { version = "1", features = ["signal"] }
