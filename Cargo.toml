@@ -1,6 +1,6 @@
 [package]
 name = "cc-server-kit"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
 
 [features]
@@ -32,7 +32,7 @@ tower-compat = ["salvo/tower-compat"]
 
 [dependencies]
 cc-auth = { optional = true, git = "https://github.com/markcda/cc-auth.git", tag = "0.3.1" }
-cc-utils = { git = "https://github.com/markcda/cc-utils.git", tag = "0.5.4" }
+cc-utils = { git = "https://github.com/markcda/cc-utils.git", tag = "0.5.5" }
 notify = "6.1"
 opentelemetry = { optional = true, version = "0.27" }
 opentelemetry-otlp = { optional = true, version = "0.27", features = ["tonic"] }
