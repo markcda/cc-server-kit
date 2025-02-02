@@ -19,7 +19,7 @@
   ],
   "pipelines": [
     {
-      "title": "lint",
+      "title": "full-lint",
       "desc": "Got from `Rust (Lint only)`. ",
       "info": "rust-lint-only@0.1.0",
       "tags": [
@@ -44,15 +44,75 @@
               ],
               "commands": [
                 {
-                  "bash_c": "cargo clippy",
+                  "bash_c": "RUSTFLAGS='--cfg reqwest_unstable' cargo check-all-features",
                   "ignore_fails": false,
                   "show_success_output": true,
-                  "show_bash_c": true,
-                  "only_when_fresh": null
+                  "show_bash_c": true
                 }
               ]
             }
           }
+        }
+      ],
+      "default": false
+    },
+    {
+      "title": "ops",
+      "desc": "",
+      "info": "lint@0.1.0",
+      "tags": [
+        "cargo",
+        "clippy"
+      ],
+      "actions": [
+        {
+          "title": "Lint",
+          "desc": "Получено из `Cargo Clippy`.",
+          "info": "cargo-clippy@0.1.0",
+          "tags": [
+            "cargo",
+            "clippy"
+          ],
+          "action": {
+            "PreBuild": {
+              "supported_langs": [
+                "Rust"
+              ],
+              "commands": [
+                {
+                  "bash_c": "cargo clippy",
+                  "ignore_fails": false,
+                  "show_success_output": true,
+                  "show_bash_c": true,
+                  "only_when_fresh": false
+                }
+              ]
+            }
+          },
+          "exec_in_project_dir": false
+        },
+        {
+          "title": "Format",
+          "desc": "Получено из `Format `.rs` files`.",
+          "info": "cargo-fmt@0.1.0",
+          "tags": [],
+          "action": {
+            "PreBuild": {
+              "supported_langs": [
+                "Rust"
+              ],
+              "commands": [
+                {
+                  "bash_c": "cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs",
+                  "ignore_fails": false,
+                  "show_success_output": false,
+                  "show_bash_c": true,
+                  "only_when_fresh": false
+                }
+              ]
+            }
+          },
+          "exec_in_project_dir": true
         }
       ],
       "default": true
@@ -60,5 +120,7 @@
   ],
   "artifacts": [],
   "variables": [],
-  "inplace_artifacts_into_project_root": []
+  "place_artifacts_into_project_root": [],
+  "containered_options": null,
+  "version": 2
 }

@@ -100,3 +100,120 @@ async fn main() {
 ```
 
 Here we go! You can now start the server with `cargo run --release`!
+
+## Configuring your server
+
+### Startup type
+
+You can select the startup type from this types:
+
+1. `http_localhost` - will listen `http://127.0.0.1:{port}` only
+2. `unsafe_http` - will listen `http://0.0.0.0:{port}`
+3. `https_acme` (requires `acme` feature) - will listen `https://{host}:{port}` with [ACME] support
+4. `quinn_acme` (requires both `acme` and `http3` features) - will listen `https://` and `quic://` with [ACME]
+5. `https_only` - will listen `https://{host}:{port}`
+6. `quinn` (requires `http3` feature) - will listen `https://` and `quic://`
+7. `quinn_only` (requires `http3` feature) - will listen `quic://{host}:{port}`
+
+Example:
+
+```yaml
+startup_type: quinn
+```
+
+### Server host & server port
+
+Specify `server_host` as IP address to listen with server (except `http_localhost` and `unsafe_http` startup types).
+
+Specify `server_port` to listen with server. If you use your app with CC Server Kit as internal service, specify any port; if you want to expose your ports to the Internet, use `80` to HTTP and `443` for HTTPS or QUIC.
+
+Also, if you want to specify your listening port after application start, you can use `server_port_achiever` field (see below).
+
+Example:
+
+```yaml
+startup_type: quinn
+server_host: 0.0.0.0
+server_port: 443
+```
+
+### ACME domain
+
+Specify `acme_domain` to use [ACME] (TLS ALPN-01).
+
+Example:
+
+```yaml
+startup_type: quinn_acme
+server_host: 0.0.0.0
+server_port: 443
+acme_domain: tls-alpn-01.domain.com
+```
+
+### SSL key & certs
+
+Example:
+
+```yaml
+startup_type: quinn
+server_host: 0.0.0.0
+server_port: 443
+ssl_crt_path: certs/fullchain.pem
+ssl_key_path: certs/privkey.pem
+```
+
+### Auto-migrate binary
+
+Specify `auto_migrate_bin` field to automatically execute any binary (for example, DB migrations) before actual server start.
+
+### Allow CORS
+
+Specify `allow_cors_domain` field to automatically manage CORS policy to given domain or domains.
+
+Example:
+
+```yaml
+# ...
+allow_cors_domain: "https://my-domain.com"
+```
+
+### Allow OAPI
+
+Specify `allow_oapi_access` field to automatically generate OpenAPI specifications and provide to users.
+
+Example:
+
+```yaml
+# ...
+allow_oapi_access: true
+oapi_frontend_type: Scalar # or `SwaggerUI`
+oapi_name: My API
+oapi_ver: 0.1.0
+```
+
+### Logging
+
+CC Server Kit uses `tracing` for logging inside routes' logic. Configuration example:
+
+```yaml
+log_level: info       # error | warn | info | debug | trace
+log_file_level: debug # error | warn | info | debug | trace
+log_rolling: daily    # never | daily | hourly | minutely
+log_rolling_max_files: 5
+```
+
+You can also specify `open_telemetry_endpoint` to automatically send your metrics collected with `tracing` to anything like Prometheus or Jaeger.
+
+### Server port achieveing
+
+You can specify `server_port_achiever` field to any filepath to make server wait for file creation and writing actual server port to listen to it.
+
+Example:
+
+```yaml
+startup_type: quinn
+server_host: 0.0.0.0
+server_port_achiever: write/port/to/me.txt
+```
+
+[ACME]: https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment

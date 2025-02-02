@@ -3,6 +3,7 @@
 use salvo::http::StatusCode;
 use serde::Deserialize;
 use std::io::Read;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tracing_appender::non_blocking::WorkerGuard as TracingFileGuard;
 
@@ -19,7 +20,7 @@ pub trait GenericSetup {
 }
 
 /// Server startup variants.
-/// 
+///
 /// These are the hardcoded variants; by default, `salvo` can much more than this.
 #[derive(Clone, Eq, PartialEq)]
 pub enum StartupVariant {
@@ -47,7 +48,7 @@ pub enum StartupVariant {
 #[derive(Clone, Deserialize)]
 pub struct GenericValues {
   /// Application name.
-  /// 
+  ///
   /// You're not needed to write it in YAML configuration, instead you should send it to `load_generic_config` function.
   #[serde(skip)]
   pub app_name: String,
@@ -56,22 +57,22 @@ pub struct GenericValues {
   /// Server host.
   pub server_host: Option<String>,
   /// Server port. For no reverse proxy and Internet usage, set to `80` for HTTP and `443` for HTTPS/QUIC.
-  pub server_port: u16,
+  pub server_port: Option<u16>,
   /// ACME origin; see [`salvo/conn/acme` docs](https://docs.rs/salvo/latest/salvo/conn/acme/index.html).
   pub acme_domain: Option<String>,
-  /// ACME challenge port; see [`salvo/conn/acme` docs](https://docs.rs/salvo/latest/salvo/conn/acme/index.html).
-  pub acme_challenge_port: Option<String>,
   /// Path to SSL key.
   pub ssl_key_path: Option<String>,
   /// Path to SSL certificate.
   pub ssl_crt_path: Option<String>,
   /// If you want to run any migration or anything else just before server's start, set to path to binary.
   pub auto_migrate_bin: Option<String>,
-  
+  /// Use text file to find out which port to listen to.
+  pub server_port_achiever: Option<PathBuf>,
+
   #[cfg(feature = "cors")]
   /// CORS allowed domains
   pub allow_cors_domain: Option<String>,
-  
+
   #[cfg(feature = "oapi")]
   /// Set this to `true` to enable OpenAPI endpoint.
   pub allow_oapi_access: Option<bool>,
@@ -87,7 +88,7 @@ pub struct GenericValues {
   #[cfg(feature = "oapi")]
   /// API endpoint (with slash), e.g. `/api` or `/swagger`.
   pub oapi_api_addr: Option<String>,
-  
+
   /// Log level; for no logging delete the line in YAML completely.
   pub log_level: Option<String>,
   /// File's log level; for no logging delete the line in YAML completely.
@@ -96,7 +97,7 @@ pub struct GenericValues {
   pub log_rolling: Option<String>,
   /// Files limitation for autoremove.
   pub log_rolling_max_files: Option<u32>,
-  
+
   #[cfg(feature = "otel")]
   /// Endpoint to export OpenTelemetry (e.g., Jaeger).
   pub open_telemetry_endpoint: Option<String>,
@@ -108,23 +109,30 @@ impl Default for GenericValues {
       app_name: "generic".into(),
       startup_type: "http_localhost".into(),
       server_host: None,
-      server_port: 8800,
+      server_port: Some(8800),
       acme_domain: None,
-      acme_challenge_port: None,
       ssl_key_path: None,
       ssl_crt_path: None,
       auto_migrate_bin: None,
-      #[cfg(feature = "cors")] allow_cors_domain: None,
-      #[cfg(feature = "oapi")] allow_oapi_access: None,
-      #[cfg(feature = "oapi")] oapi_frontend_type: None,
-      #[cfg(feature = "oapi")] oapi_name: None,
-      #[cfg(feature = "oapi")] oapi_ver: None,
-      #[cfg(feature = "oapi")] oapi_api_addr: None,
+      #[cfg(feature = "cors")]
+      allow_cors_domain: None,
+      #[cfg(feature = "oapi")]
+      allow_oapi_access: None,
+      #[cfg(feature = "oapi")]
+      oapi_frontend_type: None,
+      #[cfg(feature = "oapi")]
+      oapi_name: None,
+      #[cfg(feature = "oapi")]
+      oapi_ver: None,
+      #[cfg(feature = "oapi")]
+      oapi_api_addr: None,
       log_level: Some("debug".into()),
       log_file_level: None,
       log_rolling: None,
       log_rolling_max_files: None,
-      #[cfg(feature = "otel")] open_telemetry_endpoint: None,
+      #[cfg(feature = "otel")]
+      open_telemetry_endpoint: None,
+      server_port_achiever: None,
     }
   }
 }
@@ -138,49 +146,115 @@ pub struct GenericServerState {
   pub _file_log_guard: Option<Arc<TracingFileGuard>>,
 }
 
+async fn watcher<P: AsRef<std::path::Path>>(path: P) -> MResult<u16> {
+  use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+
+  let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+  let mut watcher = RecommendedWatcher::new(move |res| tx.blocking_send(res).unwrap(), Config::default())
+    .map_err(|e| ErrorResponse::from(e.to_string()).with_500_pub().build())?;
+  watcher
+    .watch(path.as_ref(), RecursiveMode::NonRecursive)
+    .map_err(|e| ErrorResponse::from(e.to_string()).with_500_pub().build())?;
+
+  while let Some(res) = rx.recv().await {
+    match res {
+      Ok(event) if event.kind.is_modify() || event.kind.is_create() => {
+        if let Ok(port) = std::fs::read_to_string(path.as_ref())
+          && let Ok(port) = port.trim().parse::<u16>()
+        {
+          watcher
+            .unwatch(path.as_ref())
+            .map_err(|e| ErrorResponse::from(e.to_string()).with_500_pub().build())?;
+          return Ok(port);
+        }
+      }
+      Err(e) => {
+        tracing::error!("Watch error: {:?}", e);
+        return Err(ErrorResponse::from(e.to_string()).with_500_pub().build());
+      }
+      _ => {}
+    }
+  }
+
+  Err(ErrorResponse::from("Event channel is broken!").with_500_pub().build())
+}
+
 /// Loads the config from YAML file (`{app_name}.yaml`).
 pub async fn load_generic_config<T: GenericSetup + Default>(app_name: &str) -> MResult<T> {
   let mut file = std::fs::File::open(format!("{}.yaml", app_name));
-  if file.is_err() { file = std::fs::File::open(format!("/etc/{}.yaml", app_name)); }
+  if file.is_err() {
+    file = std::fs::File::open(format!("/etc/{}.yaml", app_name));
+  }
   let mut file = file.consider(Some(E500), Some("The server configuration could not be found."), true)?;
-  
+
   let mut buffer = String::new();
-  file.read_to_string(&mut buffer).consider(Some(E500), Some("Failed to read the contents of the server configuration file."), true)?;
-  let mut data: GenericValues = serde_yaml::from_str(&buffer)
-    .map_err(|_| ErrorResponse::from("Failed to parse the contents of the server configuration file.").with_500_pub().build())?;
-  
+  file.read_to_string(&mut buffer).consider(
+    Some(E500),
+    Some("Failed to read the contents of the server configuration file."),
+    true,
+  )?;
+  let mut data: GenericValues = serde_yaml::from_str(&buffer).map_err(|_| {
+    ErrorResponse::from("Failed to parse the contents of the server configuration file.")
+      .with_500_pub()
+      .build()
+  })?;
+
   data.app_name = app_name.to_string();
-  
+
   #[cfg(feature = "oapi")]
   if data.allow_oapi_access.is_some_and(|v| v) {
-    if data.oapi_name.is_none() { return Err(ErrorResponse::from("The API name for OAPI is not specified.").with_500_pub().build()) }
-    if data.oapi_ver.is_none() { return Err(ErrorResponse::from("The API version for OAPI is not specified.").with_500_pub().build()) }
-    if data.oapi_api_addr.is_none() { return Err(ErrorResponse::from("The path to OAPI was not specified.").with_500_pub().build()) }
+    if data.oapi_name.is_none() {
+      return Err(
+        ErrorResponse::from("The API name for OAPI is not specified.")
+          .with_500_pub()
+          .build(),
+      );
+    }
+    if data.oapi_ver.is_none() {
+      return Err(
+        ErrorResponse::from("The API version for OAPI is not specified.")
+          .with_500_pub()
+          .build(),
+      );
+    }
+    if data.oapi_api_addr.is_none() {
+      return Err(
+        ErrorResponse::from("The path to OAPI was not specified.")
+          .with_500_pub()
+          .build(),
+      );
+    }
   }
-  
+
+  if let Some(achiever) = &data.server_port_achiever {
+    let port = watcher(achiever.as_path()).await?;
+    data.server_port = Some(port);
+  }
+
   let mut config = T::default();
   config.set_generic_values(data);
-  
+
   Ok(config)
 }
 
 /// Loads the server's state: initializes the logging and checks YAML config for misconfigurations and errors.
 pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericServerState> {
   let data = setup.generic_values();
-  
+
   let log_level = match_log_level(&data.log_level);
   let log_file_level = match_log_level(&data.log_file_level);
   let log_rolling = match_log_file_rolling(&data.log_rolling)?;
-  
+
   let file_log_guard = init_logging(
     &setup.generic_values().app_name,
     &log_level,
     &log_file_level,
     log_rolling,
     &data.log_rolling_max_files,
-    #[cfg(feature = "otel")] &data.open_telemetry_endpoint,
+    #[cfg(feature = "otel")]
+    &data.open_telemetry_endpoint,
   )?;
-  
+
   let state = GenericServerState {
     startup_variant: match &*data.startup_type {
       "http_localhost" => {
@@ -195,7 +269,6 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
       "https_acme" => {
         if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
         if data.acme_domain.is_none() { return Err(ErrorResponse::from("Choose ACME's domain!").with_500_pub().build()) }
-        if data.acme_challenge_port.is_none() { return Err(ErrorResponse::from("Choose ACME's challenge port! Usually it equals `80`.").with_500_pub().build()) }
         StartupVariant::HttpsAcme
       },
       "https_only" => {
@@ -208,7 +281,6 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
       "quinn_acme" => {
         if data.server_host.is_none() { return Err(ErrorResponse::from("Choose server's host, e.g. `0.0.0.0`.").with_500_pub().build()) }
         if data.acme_domain.is_none() { return Err(ErrorResponse::from("Choose ACME's domain!").with_500_pub().build()) }
-        if data.acme_challenge_port.is_none() { return Err(ErrorResponse::from("Choose ACME's challenge port! Usually it equals `80`.").with_500_pub().build()) }
         StartupVariant::QuinnAcme
       },
       #[cfg(feature = "http3")]
@@ -233,28 +305,38 @@ pub async fn load_generic_state<T: GenericSetup>(setup: &T) -> MResult<GenericSe
 }
 
 fn match_log_level(log_level: &Option<String>) -> MResult<tracing::Level> {
-  if log_level.is_some() { Ok(
-    match log_level.as_ref().unwrap().as_str() {
+  if log_level.is_some() {
+    Ok(match log_level.as_ref().unwrap().as_str() {
       "error" => tracing::Level::ERROR,
-      "warn"  => tracing::Level::WARN,
-      "info"  => tracing::Level::INFO,
+      "warn" => tracing::Level::WARN,
+      "info" => tracing::Level::INFO,
       "debug" => tracing::Level::DEBUG,
       "trace" => tracing::Level::TRACE,
-      _       => return Err(ErrorResponse::from("Incorrect logging level.").with_500_pub().build()),
-    }
-  )} else if cfg!(debug_assertions) { Ok(tracing::Level::DEBUG) } else { Err(ErrorResponse::from("Logging is disabled").with_500_pub().build()) }
+      _ => return Err(ErrorResponse::from("Incorrect logging level.").with_500_pub().build()),
+    })
+  } else if cfg!(debug_assertions) {
+    Ok(tracing::Level::DEBUG)
+  } else {
+    Err(ErrorResponse::from("Logging is disabled").with_500_pub().build())
+  }
 }
 
 fn match_log_file_rolling(log_rolling: &Option<String>) -> MResult<tracing_appender::rolling::Rotation> {
   if let Some(log_rolling) = log_rolling {
     Ok(match log_rolling.as_str() {
-      "never"    => tracing_appender::rolling::Rotation::NEVER,
-      "daily"    => tracing_appender::rolling::Rotation::DAILY,
-      "hourly"   => tracing_appender::rolling::Rotation::HOURLY,
+      "never" => tracing_appender::rolling::Rotation::NEVER,
+      "daily" => tracing_appender::rolling::Rotation::DAILY,
+      "hourly" => tracing_appender::rolling::Rotation::HOURLY,
       "minutely" => tracing_appender::rolling::Rotation::MINUTELY,
-      _          => return Err(
-        ErrorResponse::from("Incorrect level of log rotation. Choose one of the options: `never`, `daily`, `hourly`, `minutely`.").with_500().build()
-      ),
+      _ => {
+        return Err(
+          ErrorResponse::from(
+            "Incorrect level of log rotation. Choose one of the options: `never`, `daily`, `hourly`, `minutely`.",
+          )
+          .with_500()
+          .build(),
+        );
+      }
     })
   } else {
     Ok(tracing_appender::rolling::Rotation::NEVER)
@@ -263,15 +345,9 @@ fn match_log_file_rolling(log_rolling: &Option<String>) -> MResult<tracing_appen
 
 #[allow(dead_code)]
 fn log_filter(metadata: &tracing::Metadata) -> bool {
-  metadata.module_path().is_none_or(
-    |p| !(
-      p.contains("salvo")      ||
-      p.contains("hyper_util") ||
-      p.contains("tower")      ||
-      p.contains("quinn")      ||
-      p.contains("h2")
-    )
-  )
+  metadata.module_path().is_none_or(|p| {
+    !(p.contains("salvo") || p.contains("hyper_util") || p.contains("tower") || p.contains("quinn") || p.contains("h2"))
+  })
 }
 
 fn init_logging(
@@ -281,21 +357,21 @@ fn init_logging(
   log_rolling: tracing_appender::rolling::Rotation,
   log_rolling_max_files: &Option<u32>,
   #[cfg(feature = "otel")] open_telemetry_endpoint: &Option<String>,
-  
 ) -> MResult<Option<TracingFileGuard>> {
+  use tracing_appender::rolling;
+  #[allow(unused_imports)]
+  use tracing_subscriber::filter::{LevelFilter, filter_fn};
+  use tracing_subscriber::fmt::format::FmtSpan;
   use tracing_subscriber::prelude::*;
   use tracing_subscriber::{fmt, registry};
-  use tracing_subscriber::fmt::format::FmtSpan;
-  #[allow(unused_imports)] use tracing_subscriber::filter::{LevelFilter, filter_fn};
-  use tracing_appender::rolling;
-  
+
   #[cfg(feature = "otel")]
   use crate::otel::api::{KeyValue, trace::TracerProvider};
   #[cfg(feature = "otel")]
   use crate::otel::exporter::WithExportConfig;
   #[cfg(feature = "otel")]
-  use crate::otel::sdk::{trace::RandomIdGenerator, Resource};
-  
+  use crate::otel::sdk::{Resource, trace::RandomIdGenerator};
+
   let format = fmt::format()
     .with_level(true)
     .with_target(true)
@@ -304,7 +380,7 @@ fn init_logging(
     .with_file(false)
     .with_line_number(true)
     .compact();
-  
+
   let io_tracer = if let Ok(log_level) = log_level {
     #[cfg(not(feature = "log-without-filtering"))]
     let io_tracer = fmt::layer()
@@ -320,17 +396,23 @@ fn init_logging(
       .with_span_events(FmtSpan::CLOSE)
       .with_filter(LevelFilter::from_level(*log_level));
     Some(io_tracer)
-  } else { None };
-  
+  } else {
+    None
+  };
+
   let (file_tracer, guard) = if let Ok(log_file_level) = log_file_level {
     let file_appender = rolling::RollingFileAppender::builder()
       .rotation(log_rolling)
       .filename_suffix(app_name)
       .max_log_files(log_rolling_max_files.unwrap_or(5) as usize)
       .build("logs")
-      .map_err(|_| ErrorResponse::from("Failed to initialize logging to file!").with_500_pub().build())?;
+      .map_err(|_| {
+        ErrorResponse::from("Failed to initialize logging to file!")
+          .with_500_pub()
+          .build()
+      })?;
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-    
+
     #[cfg(not(feature = "log-without-filtering"))]
     let file_tracer = fmt::layer()
       .event_format(format)
@@ -346,14 +428,15 @@ fn init_logging(
       .with_ansi(false)
       .with_span_events(FmtSpan::CLOSE)
       .with_filter(LevelFilter::from_level(*log_file_level));
-    
+
     (Some(file_tracer), Some(guard))
-  } else { (None, None) };
-  
+  } else {
+    (None, None)
+  };
+
   #[cfg(feature = "otel")]
-  let otel_tracer = if
-    let Some(open_telemetry_endpoint) = open_telemetry_endpoint &&
-    let Ok(log_level) = log_level
+  let otel_tracer = if let Some(open_telemetry_endpoint) = open_telemetry_endpoint
+    && let Ok(log_level) = log_level
   {
     let otel_span_exporter = opentelemetry_otlp::SpanExporter::builder()
       .with_tonic()
@@ -368,7 +451,7 @@ fn init_logging(
       .with_resource(Resource::new(vec![KeyValue::new("service.name", app_name.to_owned())]))
       .build()
       .tracer(app_name.to_owned());
-    
+
     #[cfg(not(feature = "log-without-filtering"))]
     let opentelemetry = tracing_opentelemetry::layer()
       .with_tracer(otel_provider)
@@ -378,21 +461,18 @@ fn init_logging(
     let opentelemetry = tracing_opentelemetry::layer()
       .with_tracer(otel_provider)
       .with_filter(LevelFilter::from_level(*log_level));
-    
+
     Some(opentelemetry)
-  } else { None };
-  
+  } else {
+    None
+  };
+
   #[cfg(feature = "otel")]
-  let collector = registry()
-    .with(io_tracer)
-    .with(file_tracer)
-    .with(otel_tracer);
+  let collector = registry().with(io_tracer).with(file_tracer).with(otel_tracer);
   #[cfg(not(feature = "otel"))]
-  let collector = registry()
-    .with(io_tracer)
-    .with(file_tracer);
-  
+  let collector = registry().with(io_tracer).with(file_tracer);
+
   tracing::subscriber::set_global_default(collector)?;
-  
+
   Ok(guard)
 }
