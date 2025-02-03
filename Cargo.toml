@@ -1,6 +1,6 @@
 [package]
 name = "cc-server-kit"
-version = "0.2.7"
+version = "0.2.8"
 edition = "2024"
 
 [features]
@@ -17,13 +17,18 @@ reqwest-http3 = ["reqwest/http3"]
 cc-auth = ["dep:cc-auth"]
 cc-utils = []
 log-without-filtering = []
+flash = ["salvo/flash"]
 force-https = ["salvo/force-https"]
 jwt-auth = ["salvo/jwt-auth"]
 basic-auth = ["salvo/basic-auth"]
+cache = ["salvo/cache"]
 caching-headers = ["salvo/caching-headers"]
 catch-panic = ["salvo/catch-panic"]
+compression = ["salvo/compression"]
 concurrency-limiter = ["salvo/concurrency-limiter"]
+csrf = ["salvo/csrf"]
 request-id = ["salvo/request-id"]
+session = ["salvo/session"]
 size-limiter = ["salvo/size-limiter"]
 sse = ["salvo/sse"]
 timeout = ["salvo/timeout"]
@@ -48,4 +53,4 @@ tracing-opentelemetry = { optional = true, version = "0.28" }
 tracing-subscriber = "0.3"
 
 [package.metadata.cargo-all-features]
-denylist = ["cc-auth", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-msgpack", "reqwest-http3", "websocket", "proxy"]
+denylist = ["cc-auth", "flash", "cache", "compression", "csrf", "session", "jwt-auth", "basic-auth", "caching-headers", "catch-panic", "concurrency-limiter", "request-id", "size-limiter", "sse", "timeout", "trailing-slash", "tower-compat", "reqwest-msgpack", "reqwest-http3", "websocket", "proxy"]
