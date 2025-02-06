@@ -216,4 +216,12 @@ server_host: 0.0.0.0
 server_port_achiever: write/port/to/me.txt
 ```
 
+### Force HTTPS
+
+To enforce HTTPS, you should start another server via `start_force_https_redirect` function:
+
+```rust
+let (server, handler) = start_force_https_redirect(80, 443).await.unwrap();
+```
+
 [ACME]: https://en.wikipedia.org/wiki/Automatic_Certificate_Management_Environment

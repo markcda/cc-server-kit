@@ -92,6 +92,19 @@ unsafe fn make_mut<T>(reference: &T) -> &mut T {
   unsafe { &mut *mut_ptr }
 }
 
+#[cfg(feature = "force-https")]
+pub async fn start_force_https_redirect(
+  listen_port: u16,
+  redirect_port: u16,
+) -> MResult<(Pin<Box<dyn Future<Output = ()> + Send>>, ServerHandle)> {
+  let service = Service::new(Router::new()).hoop(ForceHttps::new().https_port(redirect_port));
+  let acceptor = TcpListener::new(format!("0.0.0.0:{}", listen_port)).bind().await;
+  let server = Server::new(acceptor);
+  let handle = server.handle();
+  let server = Box::pin(server.serve(service));
+  Ok((server, handle))
+}
+
 pub async fn start_with_service(
   app_state: GenericServerState,
   app_config: &impl GenericSetup,
@@ -216,10 +229,6 @@ pub async fn start_with_service(
     }
     #[cfg(feature = "acme")]
     StartupVariant::HttpsAcme => {
-      #[cfg(feature = "force-https")]
-      {
-        service = service.hoop(ForceHttps::new().https_port(app_config.server_port.unwrap()));
-      }
       let acceptor = TcpListener::new(format!(
         "{}:{}",
         app_config.server_host.as_ref().unwrap(),
@@ -235,10 +244,6 @@ pub async fn start_with_service(
       Box::pin(server.serve(service))
     }
     StartupVariant::HttpsOnly => {
-      #[cfg(feature = "force-https")]
-      {
-        service = service.hoop(ForceHttps::new().https_port(app_config.server_port.unwrap()));
-      }
       let rustls_config = RustlsConfig::new(
         Keycert::new()
           .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
@@ -259,10 +264,6 @@ pub async fn start_with_service(
     }
     #[cfg(all(feature = "http3", feature = "acme"))]
     StartupVariant::QuinnAcme => {
-      #[cfg(feature = "force-https")]
-      {
-        service = service.hoop(ForceHttps::new().https_port(app_config.server_port.unwrap()));
-      }
       let acceptor = TcpListener::new(format!(
         "{}:{}",
         app_config.server_host.as_ref().unwrap(),
@@ -284,10 +285,6 @@ pub async fn start_with_service(
     }
     #[cfg(feature = "http3")]
     StartupVariant::Quinn => {
-      #[cfg(feature = "force-https")]
-      {
-        service = service.hoop(ForceHttps::new().https_port(app_config.server_port.unwrap()));
-      }
       let rustls_config = RustlsConfig::new(
         Keycert::new()
           .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
@@ -325,10 +322,6 @@ pub async fn start_with_service(
     }
     #[cfg(feature = "http3")]
     StartupVariant::QuinnOnly => {
-      #[cfg(feature = "force-https")]
-      {
-        service = service.hoop(ForceHttps::new().https_port(app_config.server_port.unwrap()));
-      }
       let quinn_config = RustlsConfig::new(
         Keycert::new()
           .cert_from_path(app_config.ssl_crt_path.as_ref().unwrap())?
