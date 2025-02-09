@@ -22,9 +22,9 @@
 //!
 //! ```rust
 //! use cc_server_kit::prelude::*;
-//! use serde::{Deserialize, Serialize};
+//! use serde::Deserialize;
 //!
-//! #[derive(Deserialize, Serialize, Default, Clone)]
+//! #[derive(Deserialize, Default, Clone)]
 //! struct Setup {
 //!   #[serde(flatten)]
 //!   generic_values: GenericValues,
