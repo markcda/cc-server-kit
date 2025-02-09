@@ -2,12 +2,19 @@
 
 State-of-art simple and powerful web server based on `salvo`. Provides extended tracing, configuration-over-YAML, QUIC/HTTP3, MessagePack support, ACME, OpenAPI and OpenTelemetry features by default, with one step to CORS and WebSockets.
 
+## How's it work
+
+1. You load configuration from the file on the startup via `load_generic_config` function.
+2. You start logging, check config for misconfigurations and load the state - all just via `load_generic_state` function.
+3. You create your own `salvo::Router` and then generate server's `Future` and handle by `start` function.
+4. You manually start awaiting `server`.
+
 ## 4 Quick start steps
 
 1. Create `Setup` struct.
 2. Create simple endpoints.
 3. Create `server-example.yaml` file in crate root.
-4. Just setup your application in 7 lines in `main`.
+4. Just setup your application in 5 lines in `main`.
 
 YAML configuration example:
 
@@ -40,16 +47,18 @@ The code itself:
 
 ```rust
 use cc_server_kit::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone)]
+#[derive(Deserialize, Serialize, Default, Clone)]
 struct Setup {
+  #[serde(flatten)]
   generic_values: GenericValues,
   // this could be your global variables, such as the database URLs
 }
 
 impl GenericSetup for Setup {
   fn generic_values(&self) -> &GenericValues { &self.generic_values }
-  fn set_generic_values(&mut self, generic_values: GenericValues) { self.generic_values = generic_values; }
+  fn generic_values_mut(&mut self) -> &mut GenericValues { &mut self.generic_values; }
 }
 
 #[derive(Deserialize, Serialize, Debug, salvo::oapi::ToSchema)]

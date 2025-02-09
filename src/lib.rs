@@ -22,16 +22,18 @@
 //!
 //! ```rust
 //! use cc_server_kit::prelude::*;
+//! use serde::{Deserialize, Serialize};
 //!
-//! #[derive(Default, Clone)]
+//! #[derive(Deserialize, Serialize, Default, Clone)]
 //! struct Setup {
+//!   #[serde(flatten)]
 //!   generic_values: GenericValues,
 //!   // this could be your global variables, such as the database URLs
 //! }
 //!
 //! impl GenericSetup for Setup {
 //!   fn generic_values(&self) -> &GenericValues { &self.generic_values }
-//!   fn set_generic_values(&mut self, generic_values: GenericValues) { self.generic_values = generic_values; }
+//!   fn generic_values_mut(&mut self) -> &mut GenericValues { &mut self.generic_values }
 //! }
 //!
 //! #[derive(Deserialize, Serialize, Debug, salvo::oapi::ToSchema)]

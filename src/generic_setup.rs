@@ -2,6 +2,7 @@
 
 use salvo::http::StatusCode;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,8 +16,8 @@ static E500: StatusCode = StatusCode::INTERNAL_SERVER_ERROR;
 pub trait GenericSetup {
   /// Provides generic values; see `GenericValues`.
   fn generic_values(&self) -> &GenericValues;
-  /// Installs generic values loaded from YAML configuration file.
-  fn set_generic_values(&mut self, generic_values: GenericValues);
+  /// Provides mutable generic values; see `GenericValues`.
+  fn generic_values_mut(&mut self) -> &mut GenericValues;
 }
 
 /// Server startup variants.
@@ -180,7 +181,7 @@ async fn watcher<P: AsRef<std::path::Path>>(path: P) -> MResult<u16> {
 }
 
 /// Loads the config from YAML file (`{app_name}.yaml`).
-pub async fn load_generic_config<T: GenericSetup + Default>(app_name: &str) -> MResult<T> {
+pub async fn load_generic_config<T: DeserializeOwned + GenericSetup + Default>(app_name: &str) -> MResult<T> {
   let mut file = std::fs::File::open(format!("{}.yaml", app_name));
   if file.is_err() {
     file = std::fs::File::open(format!("/etc/{}.yaml", app_name));
@@ -193,12 +194,13 @@ pub async fn load_generic_config<T: GenericSetup + Default>(app_name: &str) -> M
     Some("Failed to read the contents of the server configuration file."),
     true,
   )?;
-  let mut data: GenericValues = serde_yaml::from_str(&buffer).map_err(|_| {
+  let mut config: T = serde_yaml::from_str(&buffer).map_err(|_| {
     ErrorResponse::from("Failed to parse the contents of the server configuration file.")
       .with_500_pub()
       .build()
   })?;
 
+  let data = config.generic_values_mut();
   data.app_name = app_name.to_string();
 
   #[cfg(feature = "oapi")]
@@ -230,9 +232,6 @@ pub async fn load_generic_config<T: GenericSetup + Default>(app_name: &str) -> M
     let port = watcher(achiever.as_path()).await?;
     data.server_port = Some(port);
   }
-
-  let mut config = T::default();
-  config.set_generic_values(data);
 
   Ok(config)
 }
