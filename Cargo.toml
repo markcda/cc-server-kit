@@ -1,6 +1,6 @@
 [package]
 name = "cc-server-kit"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2024"
 
 [features]
@@ -43,7 +43,7 @@ opentelemetry = { optional = true, version = "0.27" }
 opentelemetry-otlp = { optional = true, version = "0.27", features = ["tonic"] }
 opentelemetry_sdk = { optional = true, version = "0.27", features = ["rt-tokio"] }
 reqwest = { optional = true, git = "https://github.com/markcda/reqwest.git", branch = "msgpack-support", default-features = false, features = ["json", "rustls-tls"] }
-salvo = { git = "https://github.com/markcda/salvo.git", branch = "markcda/proxy-headers-collision-fix", features = ["affix-state", "compression", "rustls", "cookie"] }
+salvo = { version = "0.76.2", features = ["affix-state", "compression", "rustls", "cookie"] }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 tokio = { version = "1", features = ["signal"] }
