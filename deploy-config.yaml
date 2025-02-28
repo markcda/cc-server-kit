@@ -1,83 +1,83 @@
 project_name: cc-server-kit
+version: 4
 langs:
-- rust
-targets:
-- arch: x86_64
-  os: Linux
-  os_derivative: any
-  os_version:
-    type: no
-cache_files:
-- .git
-- Cargo.lock
-- target
-pipelines:
-- title: full-lint
-  desc: 'Got from `Rust (Lint only)`. '
-  info: rust-lint-only@0.1.0
-  tags:
-  - cargo
   - rust
-  - clippy
-  - lint
-  actions:
-  - title: Lint
-    desc: 'Got from `Cargo Clippy`. '
-    info: cargo-clippy@0.1.0
-    tags:
-    - cargo
-    - clippy
-    action:
-      type: pre_build
-      supported_langs:
-      - rust
-      commands:
-      - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo check-all-features
-        ignore_fails: false
-        show_success_output: true
-        show_bash_c: true
-  default: false
-- title: ops
-  desc: ''
-  info: lint@0.1.0
-  tags:
-  - cargo
-  - clippy
-  actions:
-  - title: Lint
-    desc: Получено из `Cargo Clippy`.
-    info: cargo-clippy@0.1.0
-    tags:
-    - cargo
-    - clippy
-    action:
-      type: pre_build
-      supported_langs:
-      - rust
-      commands:
-      - bash_c: cargo clippy
-        ignore_fails: false
-        show_success_output: true
-        show_bash_c: true
-        only_when_fresh: false
-    exec_in_project_dir: false
-  - title: Format
-    desc: Получено из `Format `.rs` files`.
-    info: cargo-fmt@0.1.0
-    tags: []
-    action:
-      type: pre_build
-      supported_langs:
-      - rust
-      commands:
-      - bash_c: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
-        ignore_fails: false
-        show_success_output: false
-        show_bash_c: true
-        only_when_fresh: false
-    exec_in_project_dir: true
-  default: true
+targets:
+  - arch: x86_64
+    os: Linux
+    os_derivative: any
+    os_version:
+      type: no
+cache_files:
+  - .git
+  - Cargo.lock
+  - target
 artifacts: []
 variables: []
 place_artifacts_into_project_root: []
-version: 4
+pipelines:
+  - title: full-lint
+    desc: "Got from `Rust (Lint only)`. "
+    info: rust-lint-only@0.1.0
+    tags:
+      - cargo
+      - rust
+      - clippy
+      - lint
+    default: false
+    actions:
+      - title: Lint
+        desc: "Got from `Cargo Clippy`. "
+        info: cargo-clippy@0.1.0
+        tags:
+          - cargo
+          - clippy
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: RUSTFLAGS='--cfg reqwest_unstable' cargo check-all-features
+              ignore_fails: false
+              show_success_output: true
+              show_bash_c: true
+  - title: ops
+    desc: ""
+    info: lint@0.1.0
+    tags:
+      - cargo
+      - clippy
+    default: true
+    actions:
+      - title: Lint
+        desc: Получено из `Cargo Clippy`.
+        info: cargo-clippy@0.1.0
+        tags:
+          - cargo
+          - clippy
+        exec_in_project_dir: false
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo clippy
+              ignore_fails: false
+              show_success_output: true
+              show_bash_c: true
+              only_when_fresh: false
+      - title: Format
+        desc: Получено из `Format `.rs` files`.
+        info: cargo-fmt@0.1.0
+        tags: []
+        exec_in_project_dir: true
+        action:
+          type: pre_build
+          supported_langs:
+            - rust
+          commands:
+            - bash_c: cargo fmt -- --config tab_spaces=2,max_width=120 */**/*.rs
+              ignore_fails: false
+              show_success_output: false
+              show_bash_c: true
+              only_when_fresh: false
