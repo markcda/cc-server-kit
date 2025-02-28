@@ -17,3 +17,6 @@ pub use salvo::{Depot, Request, Router};
 
 #[cfg(feature = "oapi")]
 pub use salvo::oapi::endpoint;
+
+#[cfg(feature = "test")]
+pub use crate::test_exts::*;

@@ -114,3 +114,6 @@ pub use cc_auth;
 
 #[cfg(feature = "cc-utils")]
 pub use cc_utils;
+
+#[cfg(feature = "test")]
+pub mod test_exts;
